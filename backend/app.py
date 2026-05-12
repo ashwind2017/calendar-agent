@@ -82,16 +82,19 @@ def auth_logout(session_id: str = Query(...)):
 @app.get("/calendar/upcoming")
 def calendar_upcoming(
     session_id: str = Query(...),
-    days_ahead: int = Query(7),
+    days_ahead: int = Query(7, ge=1, le=60),
 ):
     creds = _require_session(session_id)
     now = datetime.now(timezone.utc)
-    events = calendar_tools.list_events(
-        creds,
-        start=now,
-        end=now + timedelta(days=days_ahead),
-        max_results=100,
-    )
+    try:
+        events = calendar_tools.list_events(
+            creds,
+            start=now,
+            end=now + timedelta(days=days_ahead),
+            max_results=100,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Calendar API error: {e}")
     return {"ok": True, "events": events, "count": len(events)}
 
 
@@ -104,8 +107,15 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat(req: ChatRequest):
+    if not req.message or not req.message.strip():
+        raise HTTPException(status_code=400, detail="Empty message")
+    if len(req.message) > 4000:
+        raise HTTPException(status_code=400, detail="Message too long (max 4000 chars)")
     creds = _require_session(req.session_id)
-    result = run_chat(req.session_id, req.message, creds)
+    try:
+        result = run_chat(req.session_id, req.message, creds)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat error: {type(e).__name__}: {e}")
     return result
 
 
@@ -120,9 +130,17 @@ class TextDocPayload(BaseModel):
 @app.post("/rag/upload-text")
 def rag_upload_text(payload: TextDocPayload):
     """Index a piece of text as a personal note / preferences doc."""
+    if not payload.content or not payload.content.strip():
+        raise HTTPException(status_code=400, detail="Empty content")
+    if len(payload.content) > 200_000:
+        raise HTTPException(status_code=400, detail="Content too long (max 200K chars)")
+    _require_session(payload.session_id)  # validate session exists
     idx = get_index(payload.session_id)
     embed_fn = get_embed_fn()
-    idx.add_document(source=payload.source, text=payload.content, embed_fn=embed_fn)
+    try:
+        idx.add_document(source=payload.source or "note", text=payload.content, embed_fn=embed_fn)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Indexing error: {e}")
     return {"ok": True, "entries": len(idx.entries)}
 
 
