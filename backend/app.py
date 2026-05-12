@@ -12,7 +12,7 @@ from auth import get_auth_url, exchange_code, load_credentials, delete_session
 import calendar_tools
 from chat_service import run_chat
 from rag_service import get_index, get_embed_fn
-from prep_assistant import generate_prep_brief
+from prep_assistant import generate_prep_brief, list_upcoming_with_prep_readiness
 import drive_tools
 
 
@@ -187,10 +187,24 @@ def drive_search(session_id: str = Query(...), q: Optional[str] = Query(None)):
 @app.get("/prep/{event_id}")
 def prep_brief(event_id: str, session_id: str = Query(...)):
     creds = _require_session(session_id)
-    result = generate_prep_brief(creds, session_id, event_id)
+    try:
+        result = generate_prep_brief(creds, session_id, event_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prep brief error: {e}")
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
     return result
+
+
+@app.get("/prep/list/upcoming")
+def prep_list_upcoming(session_id: str = Query(...), days_ahead: int = Query(7, ge=1, le=30)):
+    """List upcoming meetings with prep-readiness flags. Used for batch prep workflows."""
+    creds = _require_session(session_id)
+    try:
+        meetings = list_upcoming_with_prep_readiness(creds, days_ahead=days_ahead)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Calendar API error: {e}")
+    return {"ok": True, "meetings": meetings, "count": len(meetings)}
 
 
 if __name__ == "__main__":

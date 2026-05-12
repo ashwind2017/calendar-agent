@@ -122,6 +122,37 @@ def _summarize_brief_llm(meeting: Dict, past: List[Dict], rag_chunks: List[Dict]
     return "(No LLM configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.)"
 
 
+def list_upcoming_with_prep_readiness(
+    creds,
+    days_ahead: int = 7,
+) -> List[Dict[str, Any]]:
+    """List upcoming meetings with a readiness indicator for prep briefs.
+
+    A meeting is 'prep-eligible' if it has attendees beyond the user. Solo events
+    (focus blocks, all-day events) generally don't need a prep brief.
+    """
+    now = datetime.now(timezone.utc)
+    upcoming = calendar_tools.list_events(
+        creds,
+        start=now,
+        end=now + timedelta(days=days_ahead),
+        max_results=100,
+    )
+    user_email = calendar_tools.get_user_email(creds) or ""
+    out = []
+    for ev in upcoming:
+        attendees = [a.get("email") for a in ev.get("attendees", []) if a.get("email") and a.get("email") != user_email]
+        out.append({
+            "id": ev.get("id"),
+            "summary": ev.get("summary"),
+            "start": ev.get("start"),
+            "end": ev.get("end"),
+            "attendee_count": len(attendees),
+            "prep_eligible": len(attendees) > 0,
+        })
+    return out
+
+
 def generate_prep_brief(
     creds,
     session_id: str,
