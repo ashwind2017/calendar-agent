@@ -258,20 +258,26 @@ def run_chat(
 
     client = _anthropic_client()
     if client:
-        # Anthropic tool-use loop
+        # Anthropic tool-use loop with fallback to OpenAI on API failure
         messages = history.copy()
-        # Ensure last message is the user one we just added
         if not messages or messages[-1]["role"] != "user":
             messages.append({"role": "user", "content": user_message})
 
+        anthropic_failed = False
         for _ in range(8):  # safety cap on tool-use rounds
-            resp = client.messages.create(
-                model=config.CLAUDE_MODEL,
-                max_tokens=1500,
-                system=system,
-                tools=TOOLS,
-                messages=messages,
-            )
+            try:
+                resp = client.messages.create(
+                    model=config.CLAUDE_MODEL,
+                    max_tokens=1500,
+                    system=system,
+                    tools=TOOLS,
+                    messages=messages,
+                )
+            except Exception as e:
+                print(f"Anthropic call failed: {type(e).__name__}: {e}")
+                tool_trace.append({"tool": "_anthropic_error", "input": {}, "result_preview": str(e)[:200]})
+                anthropic_failed = True
+                break
             stop_reason = resp.stop_reason
 
             # Collect any text and tool_use blocks
@@ -318,11 +324,19 @@ def run_chat(
                 final_text = "\n".join(text_parts).strip()
                 break
 
-        if not final_text:
+        if not final_text and not anthropic_failed:
             final_text = "I worked through your request but didn't produce a final summary. Try rephrasing."
 
+        # If Anthropic failed mid-loop, fall over to OpenAI if available
+        if anthropic_failed:
+            oa_client = _openai_client()
+            if oa_client:
+                final_text = _run_openai_loop(oa_client, system, user_message, history, creds, session_id, tool_trace)
+            else:
+                final_text = "Anthropic provider failed and no OpenAI fallback configured."
+
     else:
-        # OpenAI fallback (function calling)
+        # OpenAI as primary (no Anthropic key)
         client = _openai_client()
         if not client:
             final_text = "No LLM configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY."
