@@ -16,7 +16,9 @@ export function PrepBriefModal({ sessionId, eventId, onClose }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+     
     setLoading(true);
+     
     setError(null);
     api
       .prepBrief(sessionId, eventId)

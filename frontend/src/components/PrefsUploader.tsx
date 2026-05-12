@@ -26,6 +26,7 @@ export function PrefsUploader({ sessionId }: Props) {
 
   useEffect(() => {
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   async function upload() {

@@ -43,7 +43,9 @@ export function CalendarView({ sessionId, onPrepClick, refreshKey = 0 }: Props) 
 
   useEffect(() => {
     let cancelled = false;
+     
     setLoading(true);
+     
     setError(null);
     api
       .getUpcoming(sessionId, 14)
