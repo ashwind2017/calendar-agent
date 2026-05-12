@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { DrivePicker } from "@/components/DrivePicker";
 
 type Props = {
   sessionId: string;
@@ -102,7 +103,7 @@ export function PrefsUploader({ sessionId }: Props) {
           <div className="font-semibold mb-1">Indexed:</div>
           <ul className="space-y-1">
             {Object.entries(sources).map(([s, n]) => (
-              <li key={s}>
+              <li key={s} className="truncate" title={s}>
                 <span className="font-mono">{s}</span>{" "}
                 <span className="text-zinc-400">({n} chunks)</span>
               </li>
@@ -110,6 +111,8 @@ export function PrefsUploader({ sessionId }: Props) {
           </ul>
         </div>
       )}
+
+      <DrivePicker sessionId={sessionId} onIndexed={refresh} />
     </div>
   );
 }
