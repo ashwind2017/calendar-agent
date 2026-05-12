@@ -61,9 +61,36 @@ export function CalendarView({ sessionId, onPrepClick, refreshKey = 0 }: Props) 
     };
   }, [sessionId, refreshKey]);
 
-  if (loading) return <div className="text-sm text-zinc-500">Loading calendar...</div>;
-  if (error) return <div className="text-sm text-red-600">Calendar error: {error}</div>;
-  if (events.length === 0) return <div className="text-sm text-zinc-500">No upcoming events in the next 14 days.</div>;
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="animate-pulse bg-zinc-100 rounded-lg h-16"></div>
+        ))}
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="text-sm rounded-lg border border-red-200 bg-red-50 p-3">
+        <div className="font-medium text-red-800">Could not load calendar</div>
+        <div className="text-red-700 mt-1 text-xs">{error}</div>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-2 text-xs text-red-700 underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (events.length === 0) {
+    return (
+      <div className="text-sm rounded-lg border border-dashed border-zinc-200 p-6 text-center text-zinc-500">
+        No upcoming events in the next 14 days.
+      </div>
+    );
+  }
 
   const grouped = groupByDay(events);
   const days = Object.keys(grouped).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
