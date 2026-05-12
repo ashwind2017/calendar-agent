@@ -80,13 +80,13 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
             className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                 m.role === "user"
-                  ? "bg-zinc-900 text-white"
+                  ? "bg-zinc-900 text-white whitespace-pre-wrap"
                   : "bg-white border border-zinc-200 text-zinc-900"
               }`}
             >
-              {m.content}
+              {m.role === "assistant" ? <AssistantText text={m.content} /> : m.content}
               {showTrace && m.toolTrace && m.toolTrace.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-zinc-200 text-[10px] text-zinc-500 space-y-1">
                   {m.toolTrace.map((t, idx) => (
@@ -137,4 +137,81 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
       </div>
     </div>
   );
+}
+
+// Light markdown renderer for assistant responses.
+// Handles: headers (## / ###), bullet lists (- or *), bold (**x**), code (`x`), and paragraphs.
+function AssistantText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let listBuf: string[] = [];
+
+  function flushList() {
+    if (listBuf.length) {
+      nodes.push(
+        <ul key={nodes.length} className="list-disc pl-5 my-1 space-y-0.5">
+          {listBuf.map((l, i) => (
+            <li key={i}>{inline(l.replace(/^[-*]\s+/, ""))}</li>
+          ))}
+        </ul>,
+      );
+      listBuf = [];
+    }
+  }
+
+  function inline(s: string) {
+    // very light: bold + inline code
+    const parts: React.ReactNode[] = [];
+    const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) parts.push(s.slice(last, m.index));
+      const t = m[0];
+      if (t.startsWith("**")) {
+        parts.push(<strong key={i++}>{t.slice(2, -2)}</strong>);
+      } else {
+        parts.push(
+          <code key={i++} className="bg-zinc-100 rounded px-1 py-0.5 text-[12px]">
+            {t.slice(1, -1)}
+          </code>,
+        );
+      }
+      last = m.index + t.length;
+    }
+    if (last < s.length) parts.push(s.slice(last));
+    return parts;
+  }
+
+  for (const line of lines) {
+    if (/^###\s+/.test(line)) {
+      flushList();
+      nodes.push(
+        <div key={nodes.length} className="font-semibold mt-2 text-zinc-900">
+          {line.replace(/^###\s+/, "")}
+        </div>,
+      );
+    } else if (/^##\s+/.test(line)) {
+      flushList();
+      nodes.push(
+        <div key={nodes.length} className="font-semibold mt-2 text-zinc-900">
+          {line.replace(/^##\s+/, "")}
+        </div>,
+      );
+    } else if (/^[-*]\s+/.test(line)) {
+      listBuf.push(line);
+    } else if (line.trim() === "") {
+      flushList();
+    } else {
+      flushList();
+      nodes.push(
+        <p key={nodes.length} className="my-1">
+          {inline(line)}
+        </p>,
+      );
+    }
+  }
+  flushList();
+  return <>{nodes}</>;
 }
