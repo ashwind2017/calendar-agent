@@ -79,12 +79,19 @@ def find_free_slots(
     end: datetime,
     duration_minutes: int = 30,
     working_hours: tuple = (9, 17),
-    timezone_offset_hours: int = 0,
+    user_timezone: str = "America/New_York",
 ) -> List[Dict[str, str]]:
     """Find slots where all attendees are free, within working hours.
 
+    Working hours are interpreted in user_timezone.
     Returns list of {start: iso, end: iso} dicts.
     """
+    import pytz
+    try:
+        tz = pytz.timezone(user_timezone)
+    except Exception:
+        tz = pytz.UTC
+
     busy_by_email = get_freebusy(creds, emails, start, end)
 
     # Flatten all busy windows
@@ -104,8 +111,13 @@ def find_free_slots(
     cursor = start
 
     while cursor + duration <= end:
-        # Working hours filter (naive: based on local time of cursor)
-        local_hour = cursor.hour
+        # Working hours filter in user's local timezone (not UTC)
+        local_cursor = cursor.astimezone(tz) if cursor.tzinfo else tz.localize(cursor)
+        local_hour = local_cursor.hour
+        # Skip weekends
+        if local_cursor.weekday() >= 5:
+            cursor += slot_step
+            continue
         if working_hours[0] <= local_hour < working_hours[1]:
             slot_end = cursor + duration
             is_free = True

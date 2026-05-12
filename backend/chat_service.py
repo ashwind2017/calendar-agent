@@ -41,6 +41,7 @@ TOOLS = [
                 "end_iso": {"type": "string", "description": "Latest acceptable end in ISO 8601."},
                 "duration_minutes": {"type": "integer", "description": "Meeting length in minutes."},
                 "morning_protected": {"type": "boolean", "description": "If true, only suggest slots in the afternoon. Default false."},
+                "timezone": {"type": "string", "description": "IANA timezone (e.g., America/New_York) for working hours filter. Default America/New_York."},
             },
             "required": ["start_iso", "end_iso", "duration_minutes"],
         },
@@ -139,6 +140,7 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], creds, session_id: 
             if user_email and user_email not in emails:
                 emails = [user_email] + emails
             working_hours = (12, 18) if tool_input.get("morning_protected") else (9, 17)
+            user_tz = tool_input.get("timezone") or "America/New_York"
             slots = calendar_tools.find_free_slots(
                 creds,
                 emails=emails,
@@ -146,6 +148,7 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], creds, session_id: 
                 end=end,
                 duration_minutes=duration,
                 working_hours=working_hours,
+                user_timezone=user_tz,
             )
             return {"ok": True, "slots": slots, "count": len(slots)}
 
