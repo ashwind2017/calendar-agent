@@ -39,9 +39,17 @@ function extractProposals(trace: ChatResponse["tool_trace"]): EventProposal[] {
 type Props = {
   sessionId: string;
   onActionMaybeAffectingCalendar?: () => void;
+  calendarIsEmpty?: boolean;
 };
 
-export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
+const SUGGESTED_PROMPTS = [
+  "What does my week look like?",
+  "How much time am I spending in meetings?",
+  "Find 30 min with alice@example.com this week, mornings protected",
+  "Generate a prep brief for my next meeting",
+];
+
+export function Chat({ sessionId, onActionMaybeAffectingCalendar, calendarIsEmpty }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -54,18 +62,21 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
   const [showTrace, setShowTrace] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const hasUserMessage = messages.some((m) => m.role === "user");
+  const showSuggestions = !hasUserMessage && !sending;
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  async function send() {
-    const text = input.trim();
-    if (!text || sending) return;
+  async function sendText(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return;
     setInput("");
-    setMessages((m) => [...m, { role: "user", content: text }]);
+    setMessages((m) => [...m, { role: "user", content: trimmed }]);
     setSending(true);
     try {
-      const res = await api.chat(sessionId, text);
+      const res = await api.chat(sessionId, trimmed);
       const proposals = extractProposals(res.tool_trace);
       setMessages((m) => [
         ...m,
@@ -89,6 +100,10 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
     } finally {
       setSending(false);
     }
+  }
+
+  function send() {
+    return sendText(input);
   }
 
   return (
@@ -151,6 +166,30 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
           <div className="flex justify-start">
             <div className="bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-500">
               thinking...
+            </div>
+          </div>
+        )}
+        {showSuggestions && (
+          <div className="pt-1">
+            {calendarIsEmpty && (
+              <div className="mb-3 text-xs text-zinc-600 bg-white border border-dashed border-zinc-200 rounded-lg px-3 py-2">
+                Your calendar is empty for the next 14 days. Try uploading some notes on the right to get prep briefs, or come back when you have meetings scheduled.
+              </div>
+            )}
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2 px-0.5">
+              Try one of these
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {SUGGESTED_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => sendText(p)}
+                  disabled={sending}
+                  className="text-left text-xs text-zinc-700 bg-white border border-zinc-200 rounded-lg px-3 py-2 hover:border-zinc-400 hover:bg-zinc-100 transition disabled:opacity-50"
+                >
+                  {p}
+                </button>
+              ))}
             </div>
           </div>
         )}

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, CalendarEvent } from "@/lib/api";
 
 type Props = {
   sessionId: string;
   onPrepClick: (eventId: string) => void;
   refreshKey?: number;
+  onEventsLoaded?: (count: number) => void;
 };
 
 function formatRange(start: string, end: string): string {
@@ -36,21 +37,30 @@ function groupByDay(events: CalendarEvent[]): Record<string, CalendarEvent[]> {
   return out;
 }
 
-export function CalendarView({ sessionId, onPrepClick, refreshKey = 0 }: Props) {
+export function CalendarView({ sessionId, onPrepClick, refreshKey = 0, onEventsLoaded }: Props) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const onEventsLoadedRef = useRef(onEventsLoaded);
+
+  useEffect(() => {
+    onEventsLoadedRef.current = onEventsLoaded;
+  }, [onEventsLoaded]);
 
   useEffect(() => {
     let cancelled = false;
-     
+
     setLoading(true);
-     
+
     setError(null);
     api
       .getUpcoming(sessionId, 14)
       .then((r) => {
-        if (!cancelled) setEvents(r.events || []);
+        if (!cancelled) {
+          const evs = r.events || [];
+          setEvents(evs);
+          if (onEventsLoadedRef.current) onEventsLoadedRef.current(evs.length);
+        }
       })
       .catch((e: Error) => {
         if (!cancelled) setError(e.message);

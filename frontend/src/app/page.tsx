@@ -15,6 +15,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [openPrepEventId, setOpenPrepEventId] = useState<string | null>(null);
   const [calendarRefresh, setCalendarRefresh] = useState(0);
+  const [eventCount, setEventCount] = useState<number | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -71,7 +72,7 @@ export default function Home() {
         <div className="max-w-md w-full bg-white border border-zinc-200 rounded-xl p-8 shadow-sm">
           <h1 className="text-2xl font-semibold text-zinc-900 mb-2">Calendar Agent</h1>
           <p className="text-zinc-600 text-sm mb-6">
-            An AI agent for your Google Calendar. Chat with your schedule, draft scheduling emails, and generate prep briefs for upcoming meetings.
+            Your calendar should answer questions, not just display them. Ask where your week went, find a time that works across five inboxes, or pull a prep brief from your own notes before the next meeting. Everything happens in one chat, against your real Google Workspace.
           </p>
           <button
             onClick={connectGoogle}
@@ -107,11 +108,16 @@ export default function Home() {
             sessionId={sessionId}
             onPrepClick={(id) => setOpenPrepEventId(id)}
             refreshKey={calendarRefresh}
+            onEventsLoaded={(count) => setEventCount(count)}
           />
         </section>
 
         <section className="col-span-4 bg-white border border-zinc-200 rounded-xl p-4 flex flex-col">
-          <Chat sessionId={sessionId} onActionMaybeAffectingCalendar={() => setCalendarRefresh((k) => k + 1)} />
+          <Chat
+            sessionId={sessionId}
+            onActionMaybeAffectingCalendar={() => setCalendarRefresh((k) => k + 1)}
+            calendarIsEmpty={eventCount === 0}
+          />
         </section>
 
         <section className="col-span-3 bg-white border border-zinc-200 rounded-xl p-4 overflow-y-auto">
