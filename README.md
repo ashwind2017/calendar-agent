@@ -122,6 +122,40 @@ By default the agent reads from and writes to the authenticated user's `primary`
 
 **Per-session rate limiting on expensive endpoints.** `/chat` (LLM-token cost) and `/rag/*` indexing (embedding cost) are guarded by a sliding-window limiter keyed on session id — 30 chat req/min and 10 RAG req/min. Over-budget callers get a clean `429` with `Retry-After`. In-process today; the abstraction stays the same when the bucket store moves to Redis for horizontal scaling.
 
+## Production tradeoffs and improvements at scale
+
+Today's implementation is demo-ready. The list below is the conscious gap between this and a production-grade system, grouped by concern. Every item is a deliberate scope choice, not an oversight.
+
+### State and persistence
+
+- **Sessions and RAG state are on local disk** (JSON files under `data/`). On Render's free tier the filesystem is ephemeral — restarts wipe state. Production path: encrypted Redis or Postgres for token storage with refresh-token rotation; pgvector or Qdrant for the RAG index once the corpus grows beyond what fits in JSON.
+- **Rate limiter buckets are in-process memory**, scoped to a single backend instance. Multi-instance horizontal scaling needs Redis-backed bucket storage. The `SlidingWindowLimiter` abstraction stays unchanged; only the storage swaps.
+- **In-memory metrics** (module-level dicts) don't survive restart. Production: ship to Prometheus or Datadog.
+
+### Latency and cost
+
+- **No streaming responses.** The agent thinks, then dumps the full response — fine for single-turn but the perceived latency on multi-tool flows is poor. Production: Anthropic streaming + Server-Sent Events on the frontend, stream both text and tool-use trace.
+- **No Anthropic prompt caching.** ~90% of every chat prompt is invariant (system prompt + tool schemas); caching the stable prefix would meaningfully reduce per-call cost and TTFT. Not wired in this build.
+- **Drive indexing is synchronous.** A 10k-document folder would block the request. Production: background job queue (Celery / ARQ) with progress reporting and retry.
+- **No per-tool budget within a chat turn.** Agent loops are bounded by max-rounds but not by tool-call count per query. A runaway agent could chew tokens. Production: soft cap per query.
+
+### Auth and multi-tenancy
+
+- **OAuth app in Testing mode.** Only emails added as test users in Google Cloud Console can authenticate. Publishing for general use requires Google verification of Calendar/Gmail/Drive scopes (multi-week review). Out of scope for a take-home prototype.
+- **Rate limits are single-tier.** No free / enterprise tiering exists today. Production: per-tier lookup map; the limiter object is reusable, only the lookup changes.
+- **One Google account per session.** No support for linking work + personal calendars. Production: cross-account merge for scheduling and analysis.
+
+### Reliability and operations
+
+- **No agent evaluation suite.** Smoke tests cover infrastructure (tool dispatch, RAG retrieval, memory persistence, rate limiting) but not regression-test agent behavior across prompt or model changes. Production: an eval framework (LangSmith, Promptfoo, or custom) running against fixtures on every prompt or model change.
+- **CORS is whitelisted to the deployed frontend origin** but no further hardening (CSRF tokens, request signing). Defense-in-depth gaps for a prod-grade application.
+- **No structured logging to a centralized backend.** Request logs go to stdout via the FastAPI middleware. Production: structured JSON logs shipped to Datadog / CloudWatch / Loki with correlation IDs threaded through tool calls.
+
+### Product surface
+
+- **Frontend is desktop-optimized.** Mobile responsive layout would need work. Production: responsive design, touch-friendly modals, mobile-optimized chat.
+- **No conversation history UI.** Memory persists per session on the server but there's no UI to browse or search past sessions.
+
 ## Tests
 
 ```bash
