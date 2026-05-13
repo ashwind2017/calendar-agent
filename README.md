@@ -89,6 +89,12 @@ Frontend serves on `http://localhost:3000`.
    ```
 5. Copy Client ID and Secret into `backend/.env`
 
+**Note on test users.** While in OAuth Testing mode, only emails added under the consent screen's *Test users* list can authenticate. The app supports any Google account that's been authorized — there is no hardcoded user. Publishing for production requires Google to verify the Calendar/Gmail/Drive scopes (multi-week review), which is out of scope for this prototype.
+
+### Optional: scoping to a non-primary calendar
+
+By default the agent reads from and writes to the authenticated user's `primary` calendar. To point it at a secondary calendar (useful for demos or sandboxing), set `CALENDAR_ID` in `backend/.env` to the target calendar's ID (found in Google Calendar → Settings → that calendar → Integrate calendar → Calendar ID). Leave unset to use `primary`.
+
 ## Usage
 
 1. Open `http://localhost:3000`

@@ -4,6 +4,8 @@ from typing import List, Dict, Any, Optional
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 
+from config import config
+
 
 def _service(creds: Credentials):
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
@@ -11,7 +13,7 @@ def _service(creds: Credentials):
 
 def list_events(
     creds: Credentials,
-    calendar_id: str = "primary",
+    calendar_id: Optional[str] = None,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     max_results: int = 50,
@@ -23,7 +25,7 @@ def list_events(
     time_max = (end or (now + timedelta(days=7))).isoformat()
 
     result = svc.events().list(
-        calendarId=calendar_id,
+        calendarId=calendar_id or config.CALENDAR_ID,
         timeMin=time_min,
         timeMax=time_max,
         singleEvents=True,
@@ -145,7 +147,7 @@ def create_event(
     attendees: List[str] = None,
     description: str = "",
     location: str = "",
-    calendar_id: str = "primary",
+    calendar_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a calendar event."""
     svc = _service(creds)
@@ -161,7 +163,7 @@ def create_event(
         body["location"] = location
 
     result = svc.events().insert(
-        calendarId=calendar_id,
+        calendarId=calendar_id or config.CALENDAR_ID,
         body=body,
         sendUpdates="none",
     ).execute()

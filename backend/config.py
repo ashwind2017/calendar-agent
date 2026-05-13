@@ -17,6 +17,8 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/callback")
 
+    CALENDAR_ID = os.getenv("CALENDAR_ID", "primary")
+
     # Server
     PORT = int(os.getenv("PORT", "8000"))
     DEBUG = os.getenv("DEBUG", "true").lower() == "true"
