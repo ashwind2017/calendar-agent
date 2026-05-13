@@ -98,6 +98,47 @@ def calendar_upcoming(
     return {"ok": True, "events": events, "count": len(events)}
 
 
+# ---- Calendar event from confirmed proposal ----
+
+class EventProposal(BaseModel):
+    summary: str
+    start_iso: str
+    end_iso: str
+    attendees: Optional[List[str]] = None
+    description: Optional[str] = ""
+    location: Optional[str] = ""
+
+
+class CreateFromProposalRequest(BaseModel):
+    session_id: str
+    proposal: EventProposal
+
+
+@app.post("/calendar/create-from-proposal")
+def calendar_create_from_proposal(req: CreateFromProposalRequest):
+    """Create a real calendar event from a user-confirmed proposal."""
+    creds = _require_session(req.session_id)
+    from dateutil import parser as dtparser
+    try:
+        start = dtparser.isoparse(req.proposal.start_iso)
+        end = dtparser.isoparse(req.proposal.end_iso)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid start/end ISO: {e}")
+    try:
+        event = calendar_tools.create_event(
+            creds,
+            summary=req.proposal.summary,
+            start=start,
+            end=end,
+            attendees=req.proposal.attendees or [],
+            description=req.proposal.description or "",
+            location=req.proposal.location or "",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Calendar API error: {e}")
+    return {"ok": True, "event": event}
+
+
 # ---- Chat ----
 
 class ChatRequest(BaseModel):

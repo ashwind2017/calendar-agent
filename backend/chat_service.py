@@ -47,8 +47,24 @@ TOOLS = [
         },
     },
     {
+        "name": "propose_calendar_event",
+        "description": "Propose a calendar event for the user to review and confirm in the UI. This does NOT create the event. It returns a structured proposal that the frontend renders as a confirmation card. ALWAYS use this when the user wants to schedule something; never call create_calendar_event directly. The user must click Confirm in the UI before any real event is created.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string", "description": "Event title."},
+                "start_iso": {"type": "string", "description": "Start time in ISO 8601 with timezone."},
+                "end_iso": {"type": "string", "description": "End time in ISO 8601 with timezone."},
+                "attendees": {"type": "array", "items": {"type": "string"}, "description": "Attendee emails."},
+                "description": {"type": "string", "description": "Event description / agenda."},
+                "location": {"type": "string", "description": "Location or video link."},
+            },
+            "required": ["summary", "start_iso", "end_iso"],
+        },
+    },
+    {
         "name": "create_calendar_event",
-        "description": "Create a calendar event. ONLY call this after the user has explicitly confirmed they want the event created (e.g. they said 'yes book it' or 'create that'). Never call this proactively from a 'should I' question.",
+        "description": "Create a calendar event. Only call after explicit user confirmation via propose_calendar_event flow. Do not call directly when a user asks to schedule something; use propose_calendar_event first so the UI can show a confirmation card.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -111,6 +127,7 @@ You have access to tools for the user's Google Calendar, Gmail, and a personal-c
 Behavior rules:
 - Always ground answers in real data. Call tools to fetch actual calendar/email/context. Do not invent times, attendees, or facts.
 - For multi-person scheduling, use find_free_slots with the attendee list, then propose options.
+- When the user wants to schedule, ALWAYS use propose_calendar_event first, never create_calendar_event directly. The user must confirm via UI before any event is created. After calling propose_calendar_event, briefly tell the user what you proposed and that they can confirm it in the card.
 - When drafting emails, write naturally (no boilerplate). Use the user's calendar context. Keep emails short.
 - When the user asks about their time usage, call analyze_meeting_time and report concrete numbers with recommendations.
 - Before scheduling decisions, call retrieve_personal_context to check if the user has stated preferences.
@@ -167,6 +184,21 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], creds, session_id: 
                 user_timezone=user_tz,
             )
             return {"ok": True, "slots": slots, "count": len(slots)}
+
+        if tool_name == "propose_calendar_event":
+            start = _parse_iso(tool_input.get("start_iso"))
+            end = _parse_iso(tool_input.get("end_iso"))
+            if not start or not end:
+                return {"ok": False, "error": "Missing or invalid start_iso/end_iso"}
+            proposal = {
+                "summary": tool_input.get("summary", ""),
+                "start_iso": tool_input.get("start_iso"),
+                "end_iso": tool_input.get("end_iso"),
+                "attendees": tool_input.get("attendees") or [],
+                "description": tool_input.get("description") or "",
+                "location": tool_input.get("location") or "",
+            }
+            return {"ok": True, "proposal": proposal}
 
         if tool_name == "create_calendar_event":
             start = _parse_iso(tool_input.get("start_iso"))

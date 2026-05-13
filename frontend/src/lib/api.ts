@@ -20,6 +20,23 @@ export type ChatResponse = {
   tool_trace: { tool: string; input: Record<string, unknown>; result_preview: string }[];
 };
 
+export type EventProposal = {
+  summary: string;
+  start_iso: string;
+  end_iso: string;
+  attendees?: string[];
+  description?: string;
+  location?: string;
+};
+
+export type CreatedEvent = {
+  id?: string;
+  html_link?: string;
+  summary?: string;
+  start?: string;
+  end?: string;
+};
+
 export type PrepBrief = {
   ok: boolean;
   meeting: {
@@ -101,5 +118,18 @@ export const api = {
 
   async prepBrief(sessionId: string, eventId: string): Promise<PrepBrief> {
     return jsonOrThrow(await fetch(`${API_BASE}/prep/${eventId}?session_id=${sessionId}`));
+  },
+
+  async createEventFromProposal(
+    sessionId: string,
+    proposal: EventProposal,
+  ): Promise<{ ok: boolean; event: CreatedEvent }> {
+    return jsonOrThrow(
+      await fetch(`${API_BASE}/calendar/create-from-proposal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, proposal }),
+      }),
+    );
   },
 };

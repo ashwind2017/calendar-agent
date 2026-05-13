@@ -1,13 +1,40 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { api, ChatResponse } from "@/lib/api";
+import { api, ChatResponse, EventProposal } from "@/lib/api";
+import { EventConfirmationCard } from "@/components/EventConfirmationCard";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
   toolTrace?: ChatResponse["tool_trace"];
+  proposals?: EventProposal[];
 };
+
+function extractProposals(trace: ChatResponse["tool_trace"]): EventProposal[] {
+  const proposals: EventProposal[] = [];
+  for (const t of trace) {
+    if (t.tool !== "propose_calendar_event") continue;
+    const input = t.input || {};
+    const summary = typeof input.summary === "string" ? input.summary : "";
+    const startIso = typeof input.start_iso === "string" ? input.start_iso : "";
+    const endIso = typeof input.end_iso === "string" ? input.end_iso : "";
+    if (!summary || !startIso || !endIso) continue;
+    const attendeesRaw = input.attendees;
+    const attendees = Array.isArray(attendeesRaw)
+      ? attendeesRaw.filter((x): x is string => typeof x === "string")
+      : undefined;
+    proposals.push({
+      summary,
+      start_iso: startIso,
+      end_iso: endIso,
+      attendees,
+      description: typeof input.description === "string" ? input.description : "",
+      location: typeof input.location === "string" ? input.location : "",
+    });
+  }
+  return proposals;
+}
 
 type Props = {
   sessionId: string;
@@ -39,13 +66,19 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
     setSending(true);
     try {
       const res = await api.chat(sessionId, text);
+      const proposals = extractProposals(res.tool_trace);
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: res.answer, toolTrace: res.tool_trace },
+        {
+          role: "assistant",
+          content: res.answer,
+          toolTrace: res.tool_trace,
+          proposals: proposals.length > 0 ? proposals : undefined,
+        },
       ]);
       // If tools that change calendar state ran, ask parent to refresh
       const wroteSomething = res.tool_trace.some((t) =>
-        ["create_email_draft"].includes(t.tool),
+        ["create_email_draft", "create_calendar_event"].includes(t.tool),
       );
       if (wroteSomething && onActionMaybeAffectingCalendar) {
         onActionMaybeAffectingCalendar();
@@ -87,6 +120,20 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar }: Props) {
               }`}
             >
               {m.role === "assistant" ? <AssistantText text={m.content} /> : m.content}
+              {m.role === "assistant" && m.proposals && m.proposals.length > 0 && (
+                <div className="space-y-2">
+                  {m.proposals.map((p, pi) => (
+                    <EventConfirmationCard
+                      key={pi}
+                      sessionId={sessionId}
+                      proposal={p}
+                      onCreated={() => {
+                        if (onActionMaybeAffectingCalendar) onActionMaybeAffectingCalendar();
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
               {showTrace && m.toolTrace && m.toolTrace.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-zinc-200 text-[10px] text-zinc-500 space-y-1">
                   {m.toolTrace.map((t, idx) => (
