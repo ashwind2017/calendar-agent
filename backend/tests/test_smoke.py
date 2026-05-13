@@ -667,6 +667,117 @@ def test_rag_list_missing_session_id():
 
 
 # =============================================================================
+# rate_limit.py tests
+# =============================================================================
+
+
+def test_rate_limit_under_budget_allows():
+    from rate_limit import SlidingWindowLimiter
+    limiter = SlidingWindowLimiter(max_requests=3, window_seconds=60)
+    for _ in range(3):
+        allowed, retry_after = limiter.check("user1")
+        assert allowed is True
+        assert retry_after == 0
+
+
+def test_rate_limit_over_budget_denies():
+    from rate_limit import SlidingWindowLimiter
+    limiter = SlidingWindowLimiter(max_requests=3, window_seconds=60)
+    for _ in range(3):
+        limiter.check("user1")
+    allowed, retry_after = limiter.check("user1")
+    assert allowed is False
+    assert retry_after >= 1
+
+
+def test_rate_limit_different_keys_isolated():
+    from rate_limit import SlidingWindowLimiter
+    limiter = SlidingWindowLimiter(max_requests=2, window_seconds=60)
+    # Burn key "a" to the limit
+    assert limiter.check("a")[0] is True
+    assert limiter.check("a")[0] is True
+    assert limiter.check("a")[0] is False
+    # Key "b" should still have full budget
+    assert limiter.check("b")[0] is True
+    assert limiter.check("b")[0] is True
+    assert limiter.check("b")[0] is False
+
+
+def test_rate_limit_window_expiration():
+    import time
+    from rate_limit import SlidingWindowLimiter
+    limiter = SlidingWindowLimiter(max_requests=2, window_seconds=0.5)
+    assert limiter.check("k")[0] is True
+    assert limiter.check("k")[0] is True
+    # 3rd and 4th calls denied
+    assert limiter.check("k")[0] is False
+    assert limiter.check("k")[0] is False
+    # Wait for window to expire
+    time.sleep(0.6)
+    allowed, _ = limiter.check("k")
+    assert allowed is True
+
+
+def test_rate_limit_enforce_raises_429():
+    from fastapi import HTTPException
+    from rate_limit import SlidingWindowLimiter, enforce
+    limiter = SlidingWindowLimiter(max_requests=2, window_seconds=60)
+    # Use up the budget
+    enforce(limiter, "user1", "test")
+    enforce(limiter, "user1", "test")
+    # Next call should raise
+    raised = False
+    try:
+        enforce(limiter, "user1", "test")
+    except HTTPException as exc:
+        raised = True
+        assert exc.status_code == 429
+        assert "test" in exc.detail
+        assert exc.headers is not None
+        assert "Retry-After" in exc.headers
+        assert int(exc.headers["Retry-After"]) >= 1
+    assert raised, "enforce() should have raised HTTPException"
+
+
+def test_rate_limit_reset_clears_state():
+    from rate_limit import SlidingWindowLimiter
+    limiter = SlidingWindowLimiter(max_requests=2, window_seconds=60)
+    limiter.check("a")
+    limiter.check("a")
+    assert limiter.check("a")[0] is False
+    # Reset just key "a"
+    limiter.reset("a")
+    assert limiter.check("a")[0] is True
+    # Reset all keys
+    limiter.check("b")
+    limiter.check("b")
+    assert limiter.check("b")[0] is False
+    limiter.reset()
+    assert limiter.check("a")[0] is True
+    assert limiter.check("b")[0] is True
+
+
+def test_chat_endpoint_returns_429_when_spammed():
+    """Spamming /chat past the chat_limiter budget should return 429."""
+    import rate_limit
+    # Reset limiter state so this test is isolated from any prior client calls
+    rate_limit.chat_limiter.reset()
+    client = _make_test_client()
+    session_id = "spam_session_for_rate_limit"
+    got_429 = False
+    # chat_limiter is 30/60s. Fire 35 to guarantee we cross the budget.
+    for _ in range(35):
+        resp = client.post("/chat", json={"session_id": session_id, "message": "hi"})
+        if resp.status_code == 429:
+            got_429 = True
+            assert "Retry-After" in resp.headers
+            break
+    # Clean up so later tests aren't impacted
+    rate_limit.chat_limiter.reset()
+    assert got_429, "Expected at least one 429 response after 35 rapid /chat calls"
+
+
+# =============================================================================
 # Inline runner (no pytest required)
 # =============================================================================
 
@@ -723,6 +834,14 @@ if __name__ == "__main__":
         test_metrics_endpoint_returns_snapshot,
         test_prep_list_missing_session_id,
         test_rag_list_missing_session_id,
+        # rate_limit
+        test_rate_limit_under_budget_allows,
+        test_rate_limit_over_budget_denies,
+        test_rate_limit_different_keys_isolated,
+        test_rate_limit_window_expiration,
+        test_rate_limit_enforce_raises_429,
+        test_rate_limit_reset_clears_state,
+        test_chat_endpoint_returns_429_when_spammed,
     ]
 
     # Tests needing a tmp_path fixture

@@ -15,6 +15,7 @@ from rag_service import get_index, get_embed_fn
 from prep_assistant import generate_prep_brief, list_upcoming_with_prep_readiness
 import drive_tools
 from middleware import RequestLoggingMiddleware, get_metrics_snapshot
+from rate_limit import chat_limiter, rag_limiter, enforce
 
 
 app = FastAPI(title="Calendar Agent", version="0.1.0")
@@ -163,6 +164,7 @@ def chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Empty message")
     if len(req.message) > 4000:
         raise HTTPException(status_code=400, detail="Message too long (max 4000 chars)")
+    enforce(chat_limiter, req.session_id, "chat")
     creds = _require_session(req.session_id)
     try:
         result = run_chat(req.session_id, req.message, creds)
@@ -186,6 +188,7 @@ def rag_upload_text(payload: TextDocPayload):
         raise HTTPException(status_code=400, detail="Empty content")
     if len(payload.content) > 200_000:
         raise HTTPException(status_code=400, detail="Content too long (max 200K chars)")
+    enforce(rag_limiter, payload.session_id, "rag")
     _require_session(payload.session_id)  # validate session exists
     idx = get_index(payload.session_id)
     embed_fn = get_embed_fn()
@@ -199,6 +202,7 @@ def rag_upload_text(payload: TextDocPayload):
 @app.post("/rag/index-drive-file")
 def rag_index_drive_file(session_id: str = Query(...), file_id: str = Query(...)):
     """Pull a Drive file by id and index it."""
+    enforce(rag_limiter, session_id, "rag")
     creds = _require_session(session_id)
     text = drive_tools.read_file_text(creds, file_id)
     if not text:

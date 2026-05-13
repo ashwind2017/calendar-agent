@@ -120,6 +120,8 @@ By default the agent reads from and writes to the authenticated user's `primary`
 
 **Read-only by default on action APIs.** Gmail integration creates drafts only, never sends. Calendar integration creates events only via explicit user action.
 
+**Per-session rate limiting on expensive endpoints.** `/chat` (LLM-token cost) and `/rag/*` indexing (embedding cost) are guarded by a sliding-window limiter keyed on session id — 30 chat req/min and 10 RAG req/min. Over-budget callers get a clean `429` with `Retry-After`. In-process today; the abstraction stays the same when the bucket store moves to Redis for horizontal scaling.
+
 ## Tests
 
 ```bash
