@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { api, ChatResponse, EventProposal } from "@/lib/api";
 import { EventConfirmationCard } from "@/components/EventConfirmationCard";
+import { useToast } from "@/components/Toast";
 
 type Message = {
   role: "user" | "assistant";
@@ -61,6 +62,7 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar, calendarIsEmpt
   const [sending, setSending] = useState(false);
   const [showTrace, setShowTrace] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
   const hasUserMessage = messages.some((m) => m.role === "user");
   const showSuggestions = !hasUserMessage && !sending;
@@ -96,6 +98,8 @@ export function Chat({ sessionId, onActionMaybeAffectingCalendar, calendarIsEmpt
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
+      toast.error(msg);
+      // Keep a compact inline note as a fallback so the conversation reflects what happened.
       setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
     } finally {
       setSending(false);

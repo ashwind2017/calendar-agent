@@ -6,6 +6,7 @@ import { CalendarView } from "@/components/CalendarView";
 import { Chat } from "@/components/Chat";
 import { PrefsUploader } from "@/components/PrefsUploader";
 import { PrepBriefModal } from "@/components/PrepBriefModal";
+import { useToast } from "@/components/Toast";
 
 const STORAGE_KEY = "calendar-agent-session";
 
@@ -16,6 +17,7 @@ export default function Home() {
   const [openPrepEventId, setOpenPrepEventId] = useState<string | null>(null);
   const [calendarRefresh, setCalendarRefresh] = useState(0);
   const [eventCount, setEventCount] = useState<number | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -50,7 +52,9 @@ export default function Home() {
       const { auth_url } = await api.startAuth();
       window.location.href = auth_url;
     } catch (e: unknown) {
-      setAuthError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setAuthError(msg);
+      toast.error(msg);
     }
   }
 

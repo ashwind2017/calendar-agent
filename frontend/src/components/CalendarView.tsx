@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, CalendarEvent } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 
 type Props = {
   sessionId: string;
@@ -42,6 +43,11 @@ export function CalendarView({ sessionId, onPrepClick, refreshKey = 0, onEventsL
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const onEventsLoadedRef = useRef(onEventsLoaded);
+  const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
 
   useEffect(() => {
     onEventsLoadedRef.current = onEventsLoaded;
@@ -63,7 +69,10 @@ export function CalendarView({ sessionId, onPrepClick, refreshKey = 0, onEventsL
         }
       })
       .catch((e: Error) => {
-        if (!cancelled) setError(e.message);
+        if (!cancelled) {
+          setError(e.message);
+          toastRef.current.error(e.message);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

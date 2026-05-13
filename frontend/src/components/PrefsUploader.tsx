@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { DrivePicker } from "@/components/DrivePicker";
+import { useToast } from "@/components/Toast";
 
 type Props = {
   sessionId: string;
@@ -14,6 +15,7 @@ export function PrefsUploader({ sessionId }: Props) {
   const [busy, setBusy] = useState(false);
   const [sources, setSources] = useState<Record<string, number>>({});
   const [status, setStatus] = useState<string | null>(null);
+  const toast = useToast();
 
   async function refresh() {
     try {
@@ -35,11 +37,15 @@ export function PrefsUploader({ sessionId }: Props) {
     setStatus(null);
     try {
       const r = await api.uploadPrefsText(sessionId, source.trim() || "untitled", text);
-      setStatus(`Indexed. Total chunks: ${r.entries}`);
+      const msg = `Indexed ${r.entries} chunk${r.entries === 1 ? "" : "s"}`;
+      setStatus(msg);
+      toast.success(msg);
       setText("");
       refresh();
     } catch (e: unknown) {
-      setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus(`Error: ${msg}`);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -48,10 +54,18 @@ export function PrefsUploader({ sessionId }: Props) {
   async function clearAll() {
     if (!confirm("Clear all indexed notes for this session?")) return;
     setBusy(true);
-    await api.ragClear(sessionId);
-    setSources({});
-    setStatus("Cleared.");
-    setBusy(false);
+    try {
+      await api.ragClear(sessionId);
+      setSources({});
+      setStatus("Cleared.");
+      toast.info("Cleared indexed notes");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus(`Error: ${msg}`);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

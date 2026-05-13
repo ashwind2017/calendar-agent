@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api, CreatedEvent, EventProposal } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 
 type Props = {
   sessionId: string;
@@ -50,6 +51,7 @@ export function EventConfirmationCard({ sessionId, proposal, onCreated }: Props)
   );
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   async function confirm() {
     if (status !== "pending") return;
@@ -59,11 +61,13 @@ export function EventConfirmationCard({ sessionId, proposal, onCreated }: Props)
       const res = await api.createEventFromProposal(sessionId, proposal);
       setCreatedEvent(res.event);
       setStatus("created");
+      toast.success("Event created");
       if (onCreated) onCreated(res.event);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
       setStatus("error");
+      toast.error(msg);
     }
   }
 

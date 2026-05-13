@@ -1,8 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { useToast } from "@/components/Toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+function friendlyMessage(status: number, detail: string): string {
+  if (status === 0) return "Connection error. Check your network and retry.";
+  if (status === 401) return "Your session expired. Please reconnect Google.";
+  if (status === 403) return "You don't have access to that resource.";
+  if (status === 404) return "We couldn't find what you were looking for.";
+  if (status === 429) return "Too many requests. Wait a moment and try again.";
+  if (status === 502 || status === 503 || status === 504) {
+    return "Couldn't reach the calendar service. Try again in a moment.";
+  }
+  if (status >= 500) return "Something went wrong on the server. Try again.";
+  if (detail) return detail;
+  return "Request failed. Please try again.";
+}
 
 type DriveFile = {
   id: string;
@@ -23,6 +38,7 @@ export function DrivePicker({ sessionId, onIndexed }: Props) {
   const [searching, setSearching] = useState(false);
   const [indexing, setIndexing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   async function search() {
     setSearching(true);
@@ -31,12 +47,23 @@ export function DrivePicker({ sessionId, onIndexed }: Props) {
       const url = new URL(`${API_BASE}/drive/search`);
       url.searchParams.set("session_id", sessionId);
       if (query) url.searchParams.set("q", query);
-      const r = await fetch(url.toString());
-      if (!r.ok) throw new Error(`Search failed: ${r.status}`);
+      let r: Response;
+      try {
+        r = await fetch(url.toString());
+      } catch (netErr: unknown) {
+        const msg = friendlyMessage(0, netErr instanceof Error ? netErr.message : "");
+        throw new Error(msg);
+      }
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(friendlyMessage(r.status, body.detail || r.statusText));
+      }
       const data = await r.json();
       setFiles(data.files || []);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSearching(false);
     }
@@ -49,14 +76,23 @@ export function DrivePicker({ sessionId, onIndexed }: Props) {
       const url = new URL(`${API_BASE}/rag/index-drive-file`);
       url.searchParams.set("session_id", sessionId);
       url.searchParams.set("file_id", file.id);
-      const r = await fetch(url.toString(), { method: "POST" });
+      let r: Response;
+      try {
+        r = await fetch(url.toString(), { method: "POST" });
+      } catch (netErr: unknown) {
+        const msg = friendlyMessage(0, netErr instanceof Error ? netErr.message : "");
+        throw new Error(msg);
+      }
       if (!r.ok) {
         const detail = await r.json().catch(() => ({ detail: r.statusText }));
-        throw new Error(detail.detail || r.statusText);
+        throw new Error(friendlyMessage(r.status, detail.detail || r.statusText));
       }
+      toast.success(`Indexed "${file.name}"`);
       onIndexed?.();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIndexing(null);
     }
