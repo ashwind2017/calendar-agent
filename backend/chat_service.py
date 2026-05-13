@@ -47,6 +47,22 @@ TOOLS = [
         },
     },
     {
+        "name": "create_calendar_event",
+        "description": "Create a calendar event. ONLY call this after the user has explicitly confirmed they want the event created (e.g. they said 'yes book it' or 'create that'). Never call this proactively from a 'should I' question.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string", "description": "Event title."},
+                "start_iso": {"type": "string", "description": "Start time in ISO 8601 with timezone."},
+                "end_iso": {"type": "string", "description": "End time in ISO 8601 with timezone."},
+                "attendees": {"type": "array", "items": {"type": "string"}, "description": "Attendee emails."},
+                "description": {"type": "string", "description": "Event description / agenda."},
+                "location": {"type": "string", "description": "Location or video link."},
+            },
+            "required": ["summary", "start_iso", "end_iso"],
+        },
+    },
+    {
         "name": "create_email_draft",
         "description": "Create a Gmail draft. Use this when the user wants to send scheduling emails. Returns draft id + URL the user can click to review.",
         "input_schema": {
@@ -151,6 +167,22 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], creds, session_id: 
                 user_timezone=user_tz,
             )
             return {"ok": True, "slots": slots, "count": len(slots)}
+
+        if tool_name == "create_calendar_event":
+            start = _parse_iso(tool_input.get("start_iso"))
+            end = _parse_iso(tool_input.get("end_iso"))
+            if not start or not end:
+                return {"ok": False, "error": "Missing or invalid start_iso/end_iso"}
+            event = calendar_tools.create_event(
+                creds,
+                summary=tool_input["summary"],
+                start=start,
+                end=end,
+                attendees=tool_input.get("attendees") or [],
+                description=tool_input.get("description") or "",
+                location=tool_input.get("location") or "",
+            )
+            return {"ok": True, "event": event}
 
         if tool_name == "create_email_draft":
             draft = gmail_tools.create_draft(
