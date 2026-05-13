@@ -3,6 +3,7 @@
 Primary provider: Anthropic (Claude). Fallback: OpenAI.
 """
 import json
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from dateutil import parser as dtparser
@@ -13,6 +14,14 @@ from memory_service import memory
 from rag_service import get_index, get_embed_fn
 import calendar_tools
 import gmail_tools
+
+# Tool latency tracking. Imported lazily to avoid a hard dependency in case
+# middleware.py is ever stripped out for a slim build.
+try:
+    from middleware import record_tool_call as _record_tool_call
+except Exception:
+    def _record_tool_call(tool_name: str, duration_ms: float) -> None:
+        return None
 
 
 # ---- Tool schemas (Anthropic + OpenAI shape) ----
@@ -150,6 +159,14 @@ def _parse_iso(s: Optional[str]) -> Optional[datetime]:
 
 def execute_tool(tool_name: str, tool_input: Dict[str, Any], creds, session_id: str) -> Dict[str, Any]:
     """Run a single tool call. Returns a JSON-serializable result."""
+    _tool_start = time.perf_counter()
+    try:
+        return _execute_tool_dispatch(tool_name, tool_input, creds, session_id)
+    finally:
+        _record_tool_call(tool_name, (time.perf_counter() - _tool_start) * 1000)
+
+
+def _execute_tool_dispatch(tool_name: str, tool_input: Dict[str, Any], creds, session_id: str) -> Dict[str, Any]:
     try:
         if tool_name == "list_events":
             start = _parse_iso(tool_input.get("start_iso"))

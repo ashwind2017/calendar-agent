@@ -14,9 +14,14 @@ from chat_service import run_chat
 from rag_service import get_index, get_embed_fn
 from prep_assistant import generate_prep_brief, list_upcoming_with_prep_readiness
 import drive_tools
+from middleware import RequestLoggingMiddleware, get_metrics_snapshot
 
 
 app = FastAPI(title="Calendar Agent", version="0.1.0")
+
+# Request logging + in-memory metrics. Added before CORS so it wraps
+# every request and we get accurate end-to-end timings.
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,6 +44,12 @@ def _require_session(session_id: str):
 @app.get("/")
 def root():
     return {"status": "ok", "service": "calendar-agent"}
+
+
+@app.get("/metrics")
+def metrics():
+    """In-memory observability snapshot. Not for production use."""
+    return get_metrics_snapshot()
 
 
 @app.get("/auth/start")
