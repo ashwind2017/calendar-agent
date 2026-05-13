@@ -110,7 +110,7 @@ Frontend serves on `http://localhost:3000`.
 
 **Per-session memory + per-session RAG index.** Each authenticated user gets isolated state. Memory persists conversation across page reloads; RAG index persists indexed documents.
 
-**Cache-augmented when data fits in context.** A single user's preferences and meeting history fit in context; no vector retrieval needed. If the corpus grew (e.g., entire Gmail history), the same architecture would add a retrieval step.
+**RAG over CAG for personal context.** Cache-augmented generation (dumping the full personal corpus into the system prompt on every call) is more accurate for small corpora — no retrieval miss. I chose RAG anyway because (1) the corpus is user-controlled and unbounded — a user can connect a Drive folder of arbitrary size, and CAG breaks the moment the corpus exceeds the context window; (2) per-query token cost grows linearly with corpus size under CAG but stays roughly constant under top-k RAG; (3) the abstraction is multi-tenant-friendly. The RAG index exposes `all_text()` as a hook for a CAG fallback path on small corpora if needed.
 
 **Read-only by default on action APIs.** Gmail integration creates drafts only, never sends. Calendar integration creates events only via explicit user action.
 
