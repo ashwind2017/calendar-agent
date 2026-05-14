@@ -4,6 +4,8 @@ A domain-specific AI agent for Google Calendar. Built to explore agentic pattern
 
 The goal is to move past chatbot-as-demo into chatbot-as-deployable-infrastructure: real OAuth, real API integration, real grounding, multi-provider fallback, and a prep-brief workflow that composes tool use + RAG.
 
+**Wow extension: the Meeting Prep Assistant.** Hover any upcoming calendar event and click *Prep Brief* — the agent composes three data sources (calendar metadata + retrieved personal context from RAG + LLM synthesis) into a structured pre-meeting brief. This is the high-leverage extension that elevates the system from a chatbot into an artifact-producing agent.
+
 ## What it does
 
 - Connects to your Google Workspace (Calendar + Gmail + Drive)
