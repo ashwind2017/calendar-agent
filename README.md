@@ -141,6 +141,7 @@ Today's implementation is demo-ready. The list below is the conscious gap betwee
 
 ### Auth and multi-tenancy
 
+- **Server-side opaque session tokens (not JWT).** After OAuth, the backend generates a UUID and stores Google credentials in a per-session JSON file; the frontend holds only the opaque session id. Chose this over JWT specifically because Google refresh tokens are long-lived secrets that shouldn't be exposed to the client — JWT-with-refresh-token-inside is an antipattern. Tradeoff: requires persistent server-side storage. On Render's free tier (ephemeral filesystem) sessions don't survive cold-start or redeploy — this is the immediate next thing to fix in production, by moving the session store to Redis or Postgres. The frontend ↔ backend contract stays the same; only the storage swaps. A hybrid pattern (signed JWT for the session id with server-side refresh token storage) is also valid and scales better across instances.
 - **OAuth app in Testing mode.** Only emails added as test users in Google Cloud Console can authenticate. Publishing for general use requires Google verification of Calendar/Gmail/Drive scopes (multi-week review). Out of scope for a take-home prototype.
 - **Rate limits are single-tier.** No free / enterprise tiering exists today. Production: per-tier lookup map; the limiter object is reusable, only the lookup changes.
 - **One Google account per session.** No support for linking work + personal calendars. Production: cross-account merge for scheduling and analysis.
