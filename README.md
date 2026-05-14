@@ -1,5 +1,9 @@
 # Calendar Agent
 
+**Live demo:** [calendar-agent-zeta.vercel.app](https://calendar-agent-zeta.vercel.app) (frontend on Vercel · backend on Render: [calendar-agent-pe9x.onrender.com](https://calendar-agent-pe9x.onrender.com))
+
+> Note: the deployed OAuth app is in Google's *Testing* mode, which limits authentication to allowlisted test users. The landing page and OAuth flow are reachable publicly, but completing the loop requires the email being on the test users list. Reach out if you'd like access for evaluation.
+
 A domain-specific AI agent for Google Calendar. Built to explore agentic patterns over structured APIs (tool use) combined with retrieval over unstructured personal context (RAG).
 
 The goal is to move past chatbot-as-demo into chatbot-as-deployable-infrastructure: real OAuth, real API integration, real grounding, multi-provider fallback, and a prep-brief workflow that composes tool use + RAG.
