@@ -10,6 +10,8 @@ The goal is to move past chatbot-as-demo into chatbot-as-deployable-infrastructu
 
 **Wow extension: the Meeting Prep Assistant.** Hover any upcoming calendar event and click *Prep Brief* — the agent composes three data sources (calendar metadata + retrieved personal context from RAG + LLM synthesis) into a structured pre-meeting brief. This is the high-leverage extension that elevates the system from a chatbot into an artifact-producing agent.
 
+**Demo scope.** The recorded demo covers the core agent loop: calendar reading, time analysis, scheduling with confirmation, RAG indexing, and the Meeting Prep Assistant. Gmail draft creation (gmail.compose scope, `create_email_draft` tool) is implemented in code but not shown in the demo for time — see the trust model decision ("drafts only, never sends") and `gmail_tools.py` for the implementation.
+
 ## What it does
 
 - Connects to your Google Workspace (Calendar + Gmail + Drive)
