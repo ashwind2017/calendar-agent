@@ -17,6 +17,12 @@ def _token_path(session_id: str) -> str:
     return os.path.join(config.TOKEN_DIR, f"{session_id}.json")
 
 
+def _state_path(state: str) -> str:
+    """Where we stash transient OAuth state (code_verifier) between auth URL gen and token exchange."""
+    os.makedirs(config.CACHE_DIR, exist_ok=True)
+    return os.path.join(config.CACHE_DIR, f"oauth_state_{state}.json")
+
+
 def build_flow(state: Optional[str] = None) -> Flow:
     """Build a Flow with our client config and scopes."""
     client_config = {
@@ -46,12 +52,35 @@ def get_auth_url() -> tuple[str, str]:
         include_granted_scopes="true",
         prompt="consent",
     )
+    # PKCE: if the flow auto-generated a code_verifier, persist it so we can
+    # send it back to Google during the token exchange. Otherwise Google
+    # rejects the exchange with "invalid_grant: Missing code verifier."
+    code_verifier = getattr(flow, "code_verifier", None)
+    if code_verifier:
+        with open(_state_path(state), "w") as f:
+            json.dump({"code_verifier": code_verifier}, f)
     return auth_url, state
 
 
 def exchange_code(code: str, state: str) -> str:
     """Exchange auth code for tokens, store them, return session_id."""
     flow = build_flow(state=state)
+
+    # Restore the code_verifier from the auth-URL step (PKCE round-trip)
+    state_file = _state_path(state)
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, "r") as f:
+                saved = json.load(f)
+            verifier = saved.get("code_verifier")
+            if verifier:
+                flow.code_verifier = verifier
+        finally:
+            try:
+                os.remove(state_file)
+            except OSError:
+                pass
+
     flow.fetch_token(code=code)
     creds = flow.credentials
 
